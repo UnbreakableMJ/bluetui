@@ -35,6 +35,7 @@ path = [
     "flake.nix",
     "package.nix",
     "packaging/default.nix",
+    "rust-toolchain.toml",
 ]
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>"

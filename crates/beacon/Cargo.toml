@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+# SPDX-License-Identifier: GPL-3.0-only
+
+[package]
+name = "beacon"
+version = "0.1.0"
+description = "Beacon — a Material-design GUI for managing Bluetooth on Linux, built on bluetui-core"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+slint = "1"
+anyhow = "1"
+
+[build-dependencies]
+slint-build = "1"
+
+[lints]
+workspace = true
