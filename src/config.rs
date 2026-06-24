@@ -1,5 +1,9 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use core::fmt;
-use std::{path::PathBuf, process::exit};
+use std::path::PathBuf;
 
 use ratatui::layout::Flex;
 use toml;
@@ -9,6 +13,8 @@ use serde::{
     Deserialize, Deserializer,
     de::{self, Unexpected, Visitor},
 };
+
+use crate::error::{AppError, ErrorCode, ExitCode};
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -151,13 +157,9 @@ where
         "Center" => Ok(Flex::Center),
         "SpaceAround" => Ok(Flex::SpaceAround),
         "SpaceBetween" => Ok(Flex::SpaceBetween),
-        _ => {
-            eprintln!("Wrong config: unknown layout variant {}", s);
-            eprintln!(
-                "The possible values are: Legacy, Start, End, Center, SpaceAround, SpaceBetween"
-            );
-            std::process::exit(1);
-        }
+        other => Err(de::Error::custom(format!(
+            "unknown layout variant {other:?}; valid values: Legacy, Start, End, Center, SpaceAround, SpaceBetween"
+        ))),
     }
 }
 
@@ -202,23 +204,50 @@ fn default_toggle_device_favorite() -> char {
 }
 
 impl Config {
-    pub fn new(config_file_path: Option<PathBuf>) -> Self {
-        let conf_path = config_file_path.unwrap_or(
-            dirs::config_dir()
-                .unwrap()
-                .join("bluetui")
-                .join("config.toml"),
-        );
+    /// Loads the configuration from `config_file_path`, or from the default
+    /// `$XDG_CONFIG_HOME/bluetui/config.toml` when `None`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ErrorCode::ConfigInvalid`] when the requested file cannot be
+    /// read or the TOML fails to parse.
+    pub fn new(config_file_path: Option<PathBuf>) -> Result<Self, AppError> {
+        let explicit = config_file_path.is_some();
+        let conf_path = if let Some(path) = config_file_path {
+            path
+        } else {
+            let dir = dirs::config_dir().ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::ConfigInvalid,
+                    ExitCode::ConfigInvalid,
+                    "could not determine the user configuration directory",
+                    "bluetui --config-path <path-to-config.toml>",
+                )
+            })?;
+            dir.join("bluetui").join("config.toml")
+        };
 
-        let config = std::fs::read_to_string(conf_path).unwrap_or_default();
-        let app_config: Config = match toml::from_str(&config) {
-            Ok(c) => c,
+        let contents = match std::fs::read_to_string(&conf_path) {
+            Ok(contents) => contents,
+            // A missing default config simply means "use built-in defaults".
+            Err(_) if !explicit => String::new(),
             Err(e) => {
-                eprintln!("{}", e);
-                exit(1);
+                return Err(AppError::new(
+                    ErrorCode::ConfigInvalid,
+                    ExitCode::ConfigInvalid,
+                    format!("could not read config file {}: {e}", conf_path.display()),
+                    "bluetui --config-path <existing-config.toml>",
+                ));
             }
         };
 
-        app_config
+        toml::from_str(&contents).map_err(|e| {
+            AppError::new(
+                ErrorCode::ConfigInvalid,
+                ExitCode::ConfigInvalid,
+                format!("invalid configuration: {e}"),
+                "bluetui describe --json",
+            )
+        })
     }
 }

@@ -1,0 +1,11 @@
+# SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+# Domain terms that look like identifiers but are not, so clippy::doc_markdown
+# should not demand backticks around them. `..` extends clippy's default list.
+doc-valid-idents = ["BlueZ", "D-Bus", "rfkill", ".."]
+
+# bluetui's structured CLI error (`AppError`, CLI Standard §1) is intentionally
+# rich (code, message, runnable hint, timestamp, command). Allow it as a
+# `Result` error variant without boxing every call site.
+large-error-threshold = 256

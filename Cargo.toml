@@ -1,8 +1,15 @@
+# SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+# SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+# SPDX-License-Identifier: GPL-3.0-only
+
 [package]
 name = "bluetui"
 version = "0.8.1"
-authors = ["Badr Badri <contact@pythops.com>"]
-license = "GPL-3.0"
+authors = [
+    "Badr Badri <contact@pythops.com>",
+    "Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>",
+]
+license = "GPL-3.0-only"
 edition = "2024"
 description = "TUI for managing bluetooth on Linux"
 readme = "Readme.md"
@@ -25,6 +32,8 @@ clap = { version = "4", features = ["derive"] }
 tui-input = "0.15"
 anyhow = "1"
 libdbus-sys = { version = "0.2", features = ["vendored"] }
+serde_json = "1"
+jiff = "0.2"
 
 [dev-dependencies]
 insta = "1"
