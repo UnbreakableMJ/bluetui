@@ -1,0 +1,205 @@
+\input texinfo @c -*-texinfo-*-
+@c %**start of header
+@setfilename bluetui.info
+@settitle bluetui Manual
+@documentencoding UTF-8
+@documentlanguage en
+@c %**end of header
+
+@set VERSION 0.8.1
+@set UPDATED 2026-06-24
+
+@copying
+This manual is for bluetui (version @value{VERSION}), a dual-mode command-line
+and terminal-UI tool for managing Bluetooth on Linux.
+
+Copyright @copyright{} 2026 Mohamed Hammad & Spacecraft Software.
+
+@quotation
+This document is licensed under the Creative Commons
+Attribution-ShareAlike 4.0 International License (CC-BY-SA-4.0).
+@end quotation
+@end copying
+
+@dircategory System administration
+@direntry
+* bluetui: (bluetui).      Manage Bluetooth on Linux (CLI + TUI).
+@end direntry
+
+@titlepage
+@title bluetui
+@subtitle Manage Bluetooth on Linux --- @value{VERSION}
+@author Mohamed Hammad
+@page
+@vskip 0pt plus 1filll
+@insertcopying
+@end titlepage
+
+@contents
+
+@ifnottex
+@node Top
+@top bluetui
+
+@insertcopying
+@end ifnottex
+
+@menu
+* Overview::            What bluetui is.
+* Invocation::          Running the TUI and the CLI.
+* Global Options::      Flags shared by every command.
+* Commands::            The noun-verb command tree.
+* Output and Errors::   JSON envelope, exit codes, structured errors.
+* Configuration::       The config file, keybindings, and theme.
+* Key Bindings::        Interactive TUI keys.
+* Attribution::         Maintainer and credits.
+@end menu
+
+@node Overview
+@chapter Overview
+
+@command{bluetui} manages Bluetooth adapters and devices on Linux through the
+BlueZ D-Bus service. It is @dfn{dual-mode}:
+
+@itemize @bullet
+@item
+With @emph{no subcommand} and an interactive terminal, it launches a full-screen
+terminal user interface (TUI).
+@item
+With a @emph{noun-verb subcommand}, it behaves as a structured, scriptable
+command-line interface (CLI) whose output is designed for shells and AI agents.
+@end itemize
+
+@node Invocation
+@chapter Invocation
+
+@example
+bluetui [GLOBAL OPTIONS] [COMMAND ...]
+@end example
+
+Running @command{bluetui} with no command on an interactive terminal starts the
+TUI.  In a pipe, or when the environment variable @env{AI_AGENT} (or
+@env{AGENT}/@env{CI}) is set, output defaults to machine-readable JSON and the
+TUI does not start.
+
+@node Global Options
+@chapter Global Options
+
+These flags are accepted by the bare invocation and by every subcommand:
+
+@table @option
+@item --json
+Shortcut for @option{--format json}.
+@item --format @var{fmt}
+One of @code{json}, @code{jsonl}, @code{yaml}, @code{csv}, @code{explore}.
+@item --fields @var{a,b,...}
+Restrict output records to the listed fields.
+@item --dry-run
+Emit an action plan instead of performing side effects.
+@item --verbose, -v
+Increase diagnostic output on stderr.
+@item --quiet, -q
+Suppress non-error stderr output.
+@item --no-color
+Disable ANSI color.
+@item --color @var{when}
+@code{auto}, @code{always}, or @code{never}.
+@item --absolute-time
+Render absolute UTC timestamps in human mode.
+@item --print0, -0
+Use NUL record separators for filename-safe piping.
+@item --yes, --force
+Skip interactive confirmation in non-TTY mode.
+@item --config-path @var{path}
+Use an explicit configuration file.
+@item --help, -h
+Print help (with a maintainer/URL footer).
+@item --version
+Print the version and attribution.
+@end table
+
+@node Commands
+@chapter Commands
+
+Phase 1 provides read-only data commands plus introspection.  Mutating verbs
+(connect, pair, trust, power, scan, rename, favorite) and an MCP server are
+planned for later phases.
+
+@table @code
+@item bluetui adapter list
+List all Bluetooth adapters (controllers).
+@item bluetui adapter get @var{name}
+Show one adapter (for example @code{hci0}) including its devices.
+@item bluetui device list [--adapter @var{name}]
+List devices, optionally scoped to a single adapter.
+@item bluetui device get @var{address}
+Show one device by address (@code{AA:BB:CC:DD:EE:FF}).
+@item bluetui schema [@var{noun} [@var{verb}]]
+Print a JSON Schema (Draft 2020-12) describing commands and output.
+@item bluetui describe
+Print the machine-readable capability manifest.
+@end table
+
+@node Output and Errors
+@chapter Output and Errors
+
+Standard output carries data only; diagnostics and errors go to standard error.
+Machine output is a single JSON document with the shape:
+
+@example
+@{ "metadata": @{ "tool", "version", "command", "timestamp", ... @},
+  "data": ... @}
+@end example
+
+Timestamps are ISO 8601 UTC with a mandatory @code{Z} suffix.
+
+On failure, machine mode prints a single-line error object to stderr:
+
+@example
+@{ "error": @{ "code", "exit_code", "message", "hint", "timestamp", ... @} @}
+@end example
+
+The @code{hint} is always a runnable command.  Exit codes follow the canonical
+map: @code{0} success, @code{2} usage error, @code{3} not found,
+@code{4} permission denied, @code{5} conflict, @code{10} bluetooth unavailable,
+@code{11} rfkill blocked, @code{12} invalid configuration, @code{70} internal
+error.
+
+@node Configuration
+@chapter Configuration
+
+The configuration file is read from
+@file{$XDG_CONFIG_HOME/bluetui/config.toml} (or the path given by
+@option{--config-path}).  Keybindings, window layout/width, and the theme are
+configurable.  Example:
+
+@example
+layout = "SpaceAround"
+width = "auto"
+toggle_scanning = "s"
+esc_quit = false
+
+[theme]
+background = "navy"   # "navy" (Void Navy) or "terminal"
+@end example
+
+The @code{[theme]} section selects the canvas background and may override
+individual palette tokens with @code{#RRGGBB} hex values.
+
+@node Key Bindings
+@chapter Key Bindings
+
+Navigation uses Vim-style @kbd{h}/@kbd{j}/@kbd{k}/@kbd{l} and the arrow keys.
+In text-entry fields (device rename, PIN, passkey), standard CUA editing keys
+apply: @kbd{Ctrl-C} copy, @kbd{Ctrl-X} cut, @kbd{Ctrl-V} paste, @kbd{Ctrl-Z}
+undo, and @kbd{Ctrl-S} save.
+
+@node Attribution
+@chapter Attribution
+
+Maintained by Mohamed Hammad
+(@email{Mohamed.Hammad@@SpacecraftSoftware.org}).
+@command{bluetui} is a fork of @url{https://github.com/pythops/bluetui} by
+Badr Badri; see @file{CREDITS.md}.
+
+@bye

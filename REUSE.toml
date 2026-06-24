@@ -1,0 +1,48 @@
+version = 1
+
+SPDX-PackageName = "bluetui"
+SPDX-PackageSupplier = "Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>"
+SPDX-PackageDownloadLocation = "https://github.com/UnbreakableMJ/bluetui"
+
+# Lock files and other generated manifests cannot carry inline headers.
+[[annotations]]
+path = ["Cargo.lock", "flake.lock"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Badr Badri <contact@pythops.com>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+# Brand asset: the bluetui logo, by Marco Bulgarelli (see CREDITS.md).
+[[annotations]]
+path = "assets/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Marco Bulgarelli"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+# insta snapshot fixtures (generated terminal buffers).
+[[annotations]]
+path = ["src/snapshots/**", "src/requests/snapshots/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2024 Badr Badri <contact@pythops.com>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+# Project configuration and packaging metadata.
+[[annotations]]
+path = [
+    ".gitignore",
+    ".envrc",
+    ".pre-commit-config.yaml",
+    ".github/**",
+    "flake.nix",
+    "package.nix",
+    "packaging/default.nix",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>"
+SPDX-License-Identifier = "GPL-3.0-only"
+
+# Documentation (prose) is CC-BY-SA-4.0 per The Steelbore Standard §4.1.1 / §8.5.
+[[annotations]]
+path = ["**.md", "doc/**"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>"
+SPDX-License-Identifier = "CC-BY-SA-4.0"

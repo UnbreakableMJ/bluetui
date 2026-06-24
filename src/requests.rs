@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use std::{borrow::Cow, fmt::Write};
 
 use crate::requests::{

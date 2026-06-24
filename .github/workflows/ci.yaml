@@ -47,3 +47,13 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - run: cargo test
+
+  reuse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: REUSE compliance check
+        uses: fsfe/reuse-action@v5

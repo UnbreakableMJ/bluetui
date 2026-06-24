@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+# SPDX-License-Identifier: GPL-3.0-only
+# Maintainer: Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+
+# Arch Linux package definition (The Steelbore Standard §5.5).
+# Before pushing a release tag, set `sha256sums` to the checksum of the tagged
+# source archive (replace the SKIP placeholder).
+
+pkgname=bluetui
+pkgver=0.8.1
+pkgrel=1
+pkgdesc="Dual-mode CLI + TUI for managing bluetooth on Linux"
+arch=('x86_64' 'aarch64')
+url="https://github.com/UnbreakableMJ/bluetui"
+license=('GPL-3.0-only')
+depends=('dbus' 'bluez')
+makedepends=('cargo' 'pkgconf')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+# TODO(release): replace SKIP with `sha256sum` of the tagged archive.
+sha256sums=('SKIP')
+
+prepare() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR=target
+    cargo build --frozen --release
+}
+
+check() {
+    cd "$pkgname-$pkgver"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo test --frozen
+}
+
+package() {
+    cd "$pkgname-$pkgver"
+    install -Dm0755 "target/release/$pkgname" "$pkgdir/usr/bin/$pkgname"
+    install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+    # Install the Texinfo manual and register it with the Info directory.
+    if [ -f "doc/$pkgname.info" ]; then
+        install -Dm0644 "doc/$pkgname.info" "$pkgdir/usr/share/info/$pkgname.info"
+    fi
+}
+
+post_install() {
+    install-info "/usr/share/info/$pkgname.info" /usr/share/info/dir 2>/dev/null || true
+}
+
+post_upgrade() {
+    post_install "$@"
+}
+
+pre_remove() {
+    install-info --delete "/usr/share/info/$pkgname.info" /usr/share/info/dir 2>/dev/null || true
+}
