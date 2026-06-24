@@ -9,8 +9,10 @@
 //! honor `--dry-run`; `schema`/`describe` are pure and never touch BlueZ.
 
 use std::str::FromStr;
+use std::time::Duration;
 
 use bluer::Address;
+use futures::StreamExt;
 use serde_json::{Value, json};
 
 use crate::bluetooth::Controller;
@@ -18,6 +20,7 @@ use crate::bluetooth_query;
 use crate::cli::{AdapterCommand, Command, DeviceCommand, GlobalFlags, OnOff, SchemaArgs};
 use crate::dto::{AdapterDto, DeviceDto};
 use crate::error::{AppError, ErrorCode, ExitCode, IntoAppError};
+use crate::favorite::{read_favorite_devices_from_disk, save_favorite_devices_to_disk};
 use crate::output::{self, MAINTAINER, OutputMode, Response, TOOL, VERSION, WEBSITE};
 
 /// Hint pointing at the most useful recovery command for BlueZ failures.
@@ -132,6 +135,52 @@ async fn adapter(
                 name,
                 Some(*state),
             )?;
+        }
+        AdapterCommand::Scan { name, duration } => {
+            let controller = find_adapter(&controllers, name)?;
+            if globals.dry_run {
+                emit_action(globals, mode, "bluetui adapter scan", "scan", name, None)?;
+            } else {
+                let adapter = controller.adapter.clone();
+                let mut stream = adapter.discover_devices().await.into_app(
+                    ErrorCode::OperationFailed,
+                    ExitCode::General,
+                    "bluetui adapter list --json",
+                )?;
+                // Drive the discovery stream for the requested window; the
+                // timeout elapsing is the expected, successful end of the scan.
+                let _ = tokio::time::timeout(Duration::from_secs(*duration), async {
+                    while stream.next().await.is_some() {}
+                })
+                .await;
+                drop(stream);
+
+                // Re-read to report what discovery surfaced.
+                let refreshed = load_controllers().await?;
+                let controller = find_adapter(&refreshed, name)?;
+                let discovered: Vec<DeviceDto> = controller
+                    .new_devices
+                    .iter()
+                    .map(|d| DeviceDto::with_adapter(d, &controller.name))
+                    .collect();
+                let discovered = serde_json::to_value(&discovered).map_err(|e| {
+                    AppError::new(
+                        ErrorCode::InternalError,
+                        ExitCode::Internal,
+                        format!("failed to serialize discovered devices: {e}"),
+                        "bluetui describe --json",
+                    )
+                })?;
+                let response = Response::new(
+                    "bluetui adapter scan",
+                    json!({
+                        "adapter": name.as_str(),
+                        "duration_seconds": *duration,
+                        "discovered": discovered,
+                    }),
+                );
+                output::render(&response, mode, globals.fields.as_deref(), globals.print0)?;
+            }
         }
     }
     Ok(ExitCode::Success.as_i32())
@@ -356,6 +405,53 @@ async fn device(
                 None,
             )?;
         }
+        DeviceCommand::Favorite { address } => {
+            let addr = parse_addr(address, "bluetui device favorite")?;
+            let controllers = load_controllers().await?;
+            resolve_device(&controllers, addr, "bluetui device favorite")?;
+            if !globals.dry_run {
+                let mut favorites = read_favorite_devices_from_disk().unwrap_or_default();
+                if !favorites.contains(&addr) {
+                    favorites.push(addr);
+                    save_favorite_devices_to_disk(&favorites).into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui device list --json",
+                    )?;
+                }
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device favorite",
+                "favorite",
+                address,
+                None,
+            )?;
+        }
+        DeviceCommand::Unfavorite { address } => {
+            let addr = parse_addr(address, "bluetui device unfavorite")?;
+            // Unfavoriting is local-only, idempotent state; no BlueZ lookup needed.
+            if !globals.dry_run {
+                let mut favorites = read_favorite_devices_from_disk().unwrap_or_default();
+                if let Some(pos) = favorites.iter().position(|a| *a == addr) {
+                    favorites.swap_remove(pos);
+                    save_favorite_devices_to_disk(&favorites).into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui device list --json",
+                    )?;
+                }
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device unfavorite",
+                "unfavorite",
+                address,
+                None,
+            )?;
+        }
     }
     Ok(ExitCode::Success.as_i32())
 }
@@ -504,6 +600,8 @@ fn commands_manifest() -> Value {
           "arguments": [{ "name": "name", "required": true }, { "name": "state", "required": true, "values": ["on", "off"] }], "reads": false, "writes": true },
         { "name": "adapter discoverable", "summary": "Enable or disable discoverability of an adapter.",
           "arguments": [{ "name": "name", "required": true }, { "name": "state", "required": true, "values": ["on", "off"] }], "reads": false, "writes": true },
+        { "name": "adapter scan", "summary": "Scan for nearby devices for a bounded window, then report discoveries.",
+          "arguments": [{ "name": "name", "required": true }, { "name": "--duration", "required": false }], "reads": true, "writes": true },
         { "name": "device connect", "summary": "Connect to a paired device.",
           "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
         { "name": "device disconnect", "summary": "Disconnect a connected device.",
@@ -518,6 +616,10 @@ fn commands_manifest() -> Value {
           "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true, "destructive": true },
         { "name": "device rename", "summary": "Set a device's alias.",
           "arguments": [{ "name": "address", "required": true }, { "name": "alias", "required": true }], "reads": false, "writes": true },
+        { "name": "device favorite", "summary": "Mark a device as a favorite (local state).",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
+        { "name": "device unfavorite", "summary": "Remove a device's favorite mark (local state).",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
         { "name": "schema", "summary": "Print the JSON Schema for commands and output.", "reads": true, "writes": false },
         { "name": "describe", "summary": "Print this capability manifest.", "reads": true, "writes": false }
     ])

@@ -124,9 +124,11 @@ errors are structured JSON on stderr with a runnable `hint` and a canonical exit
 code. Every data command accepts `--json`/`--format`, `--fields`, and the other
 global flags listed in `bluetui --help`.
 
-> Phase 1 exposes read-only commands plus `schema`/`describe`. Mutating verbs
-> (connect, pair, trust, power, scan, rename, favorite) and an MCP server are
-> planned for later phases.
+> Read commands plus the write commands (`adapter power|pairable|discoverable`,
+> `adapter scan`, and
+> `device connect|disconnect|trust|untrust|pair|unpair|favorite|unfavorite|rename`)
+> are available. Write commands honor `--dry-run`, and `device unpair` requires
+> `--yes` outside a dry run. An MCP server is intentionally out of scope.
 
 ## Config
 

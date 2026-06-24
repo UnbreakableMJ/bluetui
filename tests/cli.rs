@@ -181,3 +181,27 @@ fn describe_lists_write_commands() {
         .expect("device unpair must be listed");
     assert_eq!(unpair["destructive"], true);
 }
+
+#[test]
+fn unfavorite_rejects_bad_address_before_bluez() {
+    let out = run(&["device", "unfavorite", "NOTANADDR", "--json"], &[]);
+    assert_eq!(out.status.code(), Some(2));
+    let err: Value = serde_json::from_slice(&out.stderr).unwrap();
+    assert_eq!(err["error"]["code"], "INVALID_ARGUMENT");
+}
+
+#[test]
+fn describe_lists_scan_and_favorite() {
+    let out = run(&["describe", "--json"], &[]);
+    assert!(out.status.success());
+    let doc: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let names: Vec<&str> = doc["data"]["commands"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|c| c["name"].as_str())
+        .collect();
+    for expected in ["adapter scan", "device favorite", "device unfavorite"] {
+        assert!(names.contains(&expected), "{expected} must be listed");
+    }
+}

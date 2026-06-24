@@ -51,9 +51,11 @@ Requires BlueZ + D-Bus + `pkg-config` on the host (`libdbus` is vendored).
   and reports back over the event channel.
 - Commits to the Spacecraft Software remote must be signed and "Verified".
 
-## Phase status
+## Command status
 
-Phase 1 (current): read-only commands (`adapter list|get`, `device list|get`),
-`schema`, `describe`. Mutating verbs (connect/pair/trust/power/scan/rename/favorite)
-and the `bluetui mcp` server are planned for later phases — the command tree is
-shaped so they slot in without breaking the envelope or exit-code map.
+Read commands (`adapter list|get`, `device list|get`), write commands
+(`adapter power|pairable|discoverable`, `adapter scan`,
+`device connect|disconnect|trust|untrust|pair|unpair|favorite|unfavorite|rename`),
+`schema`, and `describe` are all implemented. Write commands honor `--dry-run`;
+`device unpair` requires `--yes` outside a dry run. An MCP server is
+**intentionally out of scope** for this project.

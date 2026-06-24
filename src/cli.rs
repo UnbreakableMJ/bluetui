@@ -194,6 +194,14 @@ pub enum AdapterCommand {
         /// Target state.
         state: OnOff,
     },
+    /// Scan for nearby devices for a bounded window, then report discoveries.
+    Scan {
+        /// Adapter name, e.g. `hci0`.
+        name: String,
+        /// How long to scan, in seconds.
+        #[arg(long, default_value_t = 5)]
+        duration: u64,
+    },
 }
 
 /// Verbs under `bluetui device`.
@@ -247,6 +255,16 @@ pub enum DeviceCommand {
         address: String,
         /// The new alias.
         alias: String,
+    },
+    /// Mark a device as a favorite (local state).
+    Favorite {
+        /// Device address.
+        address: String,
+    },
+    /// Remove a device's favorite mark (local state).
+    Unfavorite {
+        /// Device address.
+        address: String,
     },
 }
 

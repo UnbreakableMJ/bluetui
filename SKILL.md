@@ -21,11 +21,18 @@ scripting and agents; run it bare in a terminal for the interactive TUI.
 | `bluetui adapter get <name>` | Show one adapter (e.g. `hci0`) with its devices. |
 | `bluetui device list [--adapter <name>]` | List devices, optionally scoped to an adapter. |
 | `bluetui device get <addr>` | Show one device by address (`AA:BB:CC:DD:EE:FF`). |
+| `bluetui adapter power\|pairable\|discoverable <name> <on\|off>` | Toggle adapter state. |
+| `bluetui adapter scan <name> [--duration <s>]` | Discover nearby devices for a bounded window. |
+| `bluetui device connect\|disconnect <addr>` | Connect or disconnect a device. |
+| `bluetui device trust\|untrust <addr>` | Set or clear device trust. |
+| `bluetui device pair\|unpair <addr>` | Pair, or remove (unpair needs `--yes`). |
+| `bluetui device favorite\|unfavorite <addr>` | Toggle the local favorite mark. |
+| `bluetui device rename <addr> <alias>` | Set a device alias. |
 | `bluetui schema [noun [verb]]` | JSON Schema (Draft 2020-12) of commands and output. |
 | `bluetui describe` | Machine-readable capability manifest. |
 
-Mutating verbs (connect, pair, trust, power, scan, rename, favorite) and an MCP
-server (`bluetui mcp`) are planned for later phases.
+Write commands honor `--dry-run`; `device unpair` requires `--yes` outside a dry
+run. An MCP server is intentionally out of scope for this project.
 
 ## Global flags
 
