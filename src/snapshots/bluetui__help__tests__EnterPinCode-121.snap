@@ -2,5 +2,5 @@
 source: src/help.rs
 expression: terminal.backend()
 ---
-"                                             󱊷  Discard | ⇄ Nav | ↵  Submit                                              "
+"                                    󱊷  Discard | ⇄ Nav | ↵  Submit | ^C ^X ^V ^Z Edit                                    "
 "                                                                                                                         "

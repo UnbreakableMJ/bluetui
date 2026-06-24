@@ -1,8 +1,13 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use crate::bluetooth::Controller;
+use crate::theme::Theme;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Style, Stylize},
+    style::Stylize,
     text::Line,
     widgets::{Block, BorderType, Clear, Padding, Paragraph, TableState},
 };
@@ -15,6 +20,7 @@ pub fn render_set_alias(
     new_alias: &Input,
     frame: &mut Frame,
     area: Rect,
+    theme: &Theme,
 ) {
     let center_cutout = area.centered(Constraint::Max(70), Constraint::Length(6));
 
@@ -32,7 +38,7 @@ pub fn render_set_alias(
     frame.render_widget(
         Block::bordered()
             .border_type(BorderType::Thick)
-            .border_style(Style::default().green()),
+            .border_style(theme.dialog_border()),
         center_cutout,
     );
 
@@ -50,8 +56,12 @@ pub fn render_set_alias(
 
             let alias_input = Paragraph::new(new_alias.value())
                 .alignment(Alignment::Left)
-                .style(Style::default().fg(Color::White))
-                .block(Block::new().on_dark_gray().padding(Padding::horizontal(2)));
+                .style(theme.input_surface())
+                .block(
+                    Block::new()
+                        .style(theme.input_surface())
+                        .padding(Padding::horizontal(2)),
+                );
 
             frame.render_widget(message_paragraph, message_area);
             frame.render_widget(alias_input, input_area);

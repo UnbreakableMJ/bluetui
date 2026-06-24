@@ -1,14 +1,17 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Margin, Rect},
-    style::{Color, Style, Stylize},
     text::Line,
     widgets::{Block, BorderType, Borders, Clear, Paragraph},
 };
 
 use bluer::Address;
 
-use crate::{agent::AuthAgent, app::AppResult};
+use crate::{agent::AuthAgent, app::AppResult, theme::Theme};
 
 #[derive(Debug, Clone)]
 pub struct DisplayPinCode {
@@ -34,7 +37,7 @@ impl DisplayPinCode {
         Ok(())
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let block = Layout::vertical([
             Constraint::Fill(1),
             Constraint::Length(10),
@@ -56,8 +59,7 @@ impl DisplayPinCode {
             Line::from(""),
             Line::from(self.pin_code.clone())
                 .centered()
-                .bold()
-                .bg(Color::DarkGray),
+                .style(theme.input_surface().bold()),
         ];
 
         let message = Paragraph::new(message).centered();
@@ -68,7 +70,8 @@ impl DisplayPinCode {
             Block::new()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Thick)
-                .border_style(Style::default().fg(Color::Green)),
+                .border_style(theme.dialog_border())
+                .style(theme.base()),
             block,
         );
         frame.render_widget(

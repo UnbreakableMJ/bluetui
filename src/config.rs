@@ -6,6 +6,7 @@ use core::fmt;
 use std::path::PathBuf;
 
 use ratatui::layout::Flex;
+use ratatui::style::Color;
 use toml;
 
 use dirs;
@@ -15,6 +16,7 @@ use serde::{
 };
 
 use crate::error::{AppError, ErrorCode, ExitCode};
+use crate::theme::Theme;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
@@ -35,6 +37,9 @@ pub struct Config {
 
     #[serde(default)]
     pub paired_device: PairedDevice,
+
+    #[serde(default)]
+    pub theme: ThemeConfig,
 }
 
 #[derive(Debug, Default)]
@@ -144,6 +149,123 @@ impl Default for PairedDevice {
     }
 }
 
+/// The `[theme]` configuration section (Standard §11.1).
+///
+/// All fields default, so existing configs without a `[theme]` table keep
+/// working. `background` chooses the canvas; the optional per-token hex
+/// overrides let a user retheme without touching application logic.
+#[derive(Deserialize, Debug, Default)]
+pub struct ThemeConfig {
+    #[serde(default, deserialize_with = "deserialize_background")]
+    pub background: BackgroundChoice,
+
+    #[serde(default)]
+    pub foreground: Option<HexColor>,
+
+    #[serde(default)]
+    pub accent: Option<HexColor>,
+
+    #[serde(default)]
+    pub success: Option<HexColor>,
+
+    #[serde(default)]
+    pub error: Option<HexColor>,
+
+    #[serde(default)]
+    pub info: Option<HexColor>,
+
+    #[serde(default)]
+    pub surface: Option<HexColor>,
+}
+
+impl ThemeConfig {
+    /// Builds the resolved [`Theme`], starting from the canonical Steelbore
+    /// theme (with the chosen background) and applying any per-token overrides.
+    #[must_use]
+    pub fn to_theme(&self) -> Theme {
+        let base = match self.background {
+            BackgroundChoice::Navy => Theme::steelbore(),
+            BackgroundChoice::Terminal => Theme::steelbore_terminal_bg(),
+        };
+        Theme {
+            foreground: self.foreground.map_or(base.foreground, |c| c.0),
+            accent: self.accent.map_or(base.accent, |c| c.0),
+            success: self.success.map_or(base.success, |c| c.0),
+            error: self.error.map_or(base.error, |c| c.0),
+            info: self.info.map_or(base.info, |c| c.0),
+            surface: self.surface.map_or(base.surface, |c| c.0),
+            ..base
+        }
+    }
+}
+
+/// Canvas background choice for the `[theme]` section.
+#[derive(Debug, Default, Clone, Copy)]
+pub enum BackgroundChoice {
+    /// Void Navy (`#000027`), the Standard-mandated default.
+    #[default]
+    Navy,
+    /// Inherit the terminal's own background.
+    Terminal,
+}
+
+fn deserialize_background<'de, D>(deserializer: D) -> Result<BackgroundChoice, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = String::deserialize(deserializer)?;
+    match value.as_str() {
+        "navy" => Ok(BackgroundChoice::Navy),
+        "terminal" => Ok(BackgroundChoice::Terminal),
+        other => Err(de::Error::custom(format!(
+            "unknown background {other:?}; valid values: navy, terminal"
+        ))),
+    }
+}
+
+/// A `#RRGGBB` hex color usable as a per-token theme override.
+#[derive(Debug, Clone, Copy)]
+pub struct HexColor(pub Color);
+
+struct HexColorVisitor;
+
+impl Visitor<'_> for HexColorVisitor {
+    type Value = HexColor;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(r##"a hex color string like "#D98E32""##)
+    }
+
+    fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        parse_hex_color(value)
+            .map(HexColor)
+            .ok_or_else(|| de::Error::invalid_value(Unexpected::Str(value), &self))
+    }
+}
+
+impl<'de> Deserialize<'de> for HexColor {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        deserializer.deserialize_str(HexColorVisitor)
+    }
+}
+
+fn parse_hex_color(value: &str) -> Option<Color> {
+    let hex = value.strip_prefix('#')?;
+    if hex.len() != 6 || !hex.is_ascii() {
+        return None;
+    }
+    let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
+    let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
+    let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
+    Some(Color::Rgb(r, g, b))
+}
+
 fn deserialize_layout<'de, D>(deserializer: D) -> Result<Flex, D::Error>
 where
     D: Deserializer<'de>,
@@ -206,6 +328,10 @@ fn default_toggle_device_favorite() -> char {
 impl Config {
     /// Loads the configuration from `config_file_path`, or from the default
     /// `$XDG_CONFIG_HOME/bluetui/config.toml` when `None`.
+    ///
+    /// A missing default config is not an error (built-in defaults apply); a
+    /// missing *explicitly requested* file, an unreadable file, or invalid TOML
+    /// is reported as a structured [`AppError`] (CLI Standard §1).
     ///
     /// # Errors
     ///

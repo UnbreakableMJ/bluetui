@@ -1,9 +1,12 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use crossterm::event::{KeyCode, KeyEvent};
 
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style, Stylize},
     text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Clear, List},
 };
@@ -16,6 +19,8 @@ use crate::{
     app::AppResult,
     event::Event,
     requests::{pad_str, pad_string},
+    text_edit::{CuaOutcome, handle_cua},
+    theme::Theme,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -37,6 +42,8 @@ pub struct EnterPinCode {
 struct UserInputField {
     field: Input,
     error: Option<String>,
+    clipboard: String,
+    undo: Option<String>,
 }
 
 impl EnterPinCode {
@@ -104,18 +111,27 @@ impl EnterPinCode {
                     }
                 }
 
-                FocusedSection::Input => {
-                    self.pin_code
-                        .field
-                        .handle_event(&crossterm::event::Event::Key(key_event));
-                }
+                FocusedSection::Input => match handle_cua(
+                    &mut self.pin_code.field,
+                    &mut self.pin_code.clipboard,
+                    &mut self.pin_code.undo,
+                    key_event,
+                ) {
+                    CuaOutcome::Save => self.submit(agent).await?,
+                    CuaOutcome::Handled => {}
+                    CuaOutcome::Ignored => {
+                        self.pin_code
+                            .field
+                            .handle_event(&crossterm::event::Event::Key(key_event));
+                    }
+                },
             },
         }
 
         Ok(())
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let layout = Layout::vertical([
             Constraint::Fill(1),
             Constraint::Length(8),
@@ -163,14 +179,16 @@ impl EnterPinCode {
             Line::from(vec![
                 {
                     if self.focused_section == FocusedSection::Input {
-                        Span::from("Pin Code").green().bold()
+                        Span::styled("Pin Code", theme.input_label_active())
                     } else {
                         Span::from("Pin Code")
                     }
                 },
                 Span::from("  "),
-                Span::from(pad_string(format!(" {}", self.pin_code.field.value()), 60))
-                    .bg(Color::DarkGray),
+                Span::styled(
+                    pad_string(format!(" {}", self.pin_code.field.value()), 60),
+                    theme.input_surface(),
+                ),
             ]),
             Line::from(vec![Span::from(pad_str(" ", 10)), {
                 if let Some(error) = &self.pin_code.error {
@@ -179,13 +197,13 @@ impl EnterPinCode {
                     Span::from("")
                 }
             }])
-            .red(),
+            .style(theme.error_text()),
         ];
 
         let user_input = List::new(items);
 
         let submit = if self.focused_section == FocusedSection::Submit {
-            Text::from("Submit").centered().bold().green()
+            Text::from("Submit").centered().style(theme.submit_active())
         } else {
             Text::from("Submit").centered()
         };
@@ -196,7 +214,8 @@ impl EnterPinCode {
             Block::new()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Thick)
-                .border_style(Style::default().fg(Color::Green)),
+                .border_style(theme.dialog_border())
+                .style(theme.base()),
             block,
         );
 
@@ -217,8 +236,11 @@ mod tests {
         let mut terminal = Terminal::new(TestBackend::new(80, 10)).unwrap();
         terminal
             .draw(|frame| {
-                EnterPinCode::new("adapter".to_string(), Address::new(*b"DEADBE"))
-                    .render(frame, frame.area());
+                EnterPinCode::new("adapter".to_string(), Address::new(*b"DEADBE")).render(
+                    frame,
+                    frame.area(),
+                    &Theme::steelbore(),
+                );
             })
             .unwrap();
 

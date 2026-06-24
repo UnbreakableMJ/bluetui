@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
@@ -6,11 +10,35 @@ use crate::app::{App, AppResult};
 use crate::config::Config;
 use crate::event::Event;
 use crate::notification::{Notification, NotificationLevel};
+use crate::text_edit::{CuaOutcome, handle_cua};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use futures::StreamExt;
 use tokio::sync::mpsc::UnboundedSender;
 
 use tui_input::backend::crossterm::EventHandler;
+
+/// Applies the device-rename input as the selected device's new alias, then
+/// returns focus to the paired-devices list. Shared by the `Enter` and the CUA
+/// `Ctrl+S` save paths.
+async fn apply_alias(app: &mut App, sender: UnboundedSender<Event>) -> AppResult<()> {
+    if let Some(selected_controller) = app.controller_state.selected() {
+        let controller = &app.controllers[selected_controller];
+        if let Some(index) = app.paired_devices_state.selected() {
+            let device = &controller.paired_devices[index];
+            match device.set_alias(app.new_alias.value().into()).await {
+                Ok(()) => {
+                    Notification::send("Set New Alias".into(), NotificationLevel::Info, sender)?;
+                }
+                Err(e) => {
+                    Notification::send(e.into(), NotificationLevel::Error, sender)?;
+                }
+            }
+            app.focused_block = FocusedBlock::PairedDevices;
+            app.new_alias.reset();
+        }
+    }
+    Ok(())
+}
 
 fn toggle_connect(app: &mut App, sender: UnboundedSender<Event>) {
     if let Some(selected_controller) = app.controller_state.selected() {
@@ -166,36 +194,26 @@ pub async fn handle_key_events(
     match app.focused_block {
         FocusedBlock::SetDeviceAliasBox => match key_event.code {
             KeyCode::Enter => {
-                if let Some(selected_controller) = app.controller_state.selected() {
-                    let controller = &app.controllers[selected_controller];
-                    if let Some(index) = app.paired_devices_state.selected() {
-                        let device = &controller.paired_devices[index];
-                        match device.set_alias(app.new_alias.value().into()).await {
-                            Ok(()) => {
-                                Notification::send(
-                                    "Set New Alias".into(),
-                                    NotificationLevel::Info,
-                                    sender,
-                                )?;
-                            }
-                            Err(e) => {
-                                Notification::send(e.into(), NotificationLevel::Error, sender)?;
-                            }
-                        }
-                        app.focused_block = FocusedBlock::PairedDevices;
-                        app.new_alias.reset();
-                    }
-                }
+                apply_alias(app, sender).await?;
             }
 
             KeyCode::Esc => {
                 app.focused_block = FocusedBlock::PairedDevices;
                 app.new_alias.reset();
             }
-            _ => {
-                app.new_alias
-                    .handle_event(&crossterm::event::Event::Key(key_event));
-            }
+            _ => match handle_cua(
+                &mut app.new_alias,
+                &mut app.clipboard,
+                &mut app.rename_undo,
+                key_event,
+            ) {
+                CuaOutcome::Save => apply_alias(app, sender).await?,
+                CuaOutcome::Handled => {}
+                CuaOutcome::Ignored => {
+                    app.new_alias
+                        .handle_event(&crossterm::event::Event::Key(key_event));
+                }
+            },
         },
         FocusedBlock::RequestConfirmation => match key_event.code {
             KeyCode::Tab => {

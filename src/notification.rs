@@ -1,13 +1,17 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Text},
     widgets::{Block, BorderType, Borders, Clear, Paragraph, Wrap},
 };
 use tokio::sync::mpsc::UnboundedSender;
 
-use crate::{app::AppResult, event::Event, string_ref::StringRef};
+use crate::{app::AppResult, event::Event, string_ref::StringRef, theme::Theme};
 
 #[derive(Debug, Clone)]
 pub struct Notification {
@@ -24,11 +28,12 @@ pub enum NotificationLevel {
 }
 
 impl Notification {
-    pub fn render(&self, index: usize, frame: &mut Frame, area: Rect) {
-        let (color, title) = match self.level {
-            NotificationLevel::Info => (Color::Green, "Info"),
-            NotificationLevel::Warning => (Color::Yellow, "Warning"),
-            NotificationLevel::Error => (Color::Red, "Error"),
+    pub fn render(&self, index: usize, frame: &mut Frame, area: Rect, theme: &Theme) {
+        let color = theme.notification(&self.level);
+        let title = match self.level {
+            NotificationLevel::Info => "Info",
+            NotificationLevel::Warning => "Warning",
+            NotificationLevel::Error => "Error",
         };
 
         let mut text = Text::from(vec![
@@ -131,7 +136,7 @@ nisi. Fusce velit nibh, euismod vel lectus id, placerat."
                     level: level.clone(),
                     ttl: 1,
                 };
-                notification.render(0, frame, frame.area());
+                notification.render(0, frame, frame.area(), &Theme::steelbore());
             })
             .unwrap();
 

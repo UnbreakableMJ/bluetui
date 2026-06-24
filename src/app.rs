@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use crate::{
     agent::{
         display_passkey, display_pin_code, request_confirmation, request_passkey, request_pin_code,
@@ -31,6 +35,7 @@ use crate::{
     notification::Notification,
     requests::Requests,
     spinner::Spinner,
+    theme::Theme,
 };
 use std::sync::{Arc, atomic::Ordering};
 
@@ -68,6 +73,11 @@ pub struct App {
     pub config: Arc<Config>,
     pub requests: Requests,
     pub auth_agent: AuthAgent,
+    pub theme: Theme,
+    /// App-local clipboard for CUA editing in the device-rename field.
+    pub clipboard: String,
+    /// One-step undo snapshot for the device-rename field.
+    pub rename_undo: Option<String>,
 }
 
 impl App {
@@ -114,6 +124,8 @@ impl App {
             controller_state.select(Some(0));
         }
 
+        let theme = config.theme.to_theme();
+
         Ok(Self {
             running: true,
             session,
@@ -130,6 +142,9 @@ impl App {
             config,
             requests: Requests::default(),
             auth_agent,
+            theme,
+            clipboard: String::new(),
+            rename_undo: None,
         })
     }
 
@@ -208,7 +223,7 @@ impl App {
         let controller_table = Table::new(rows, widths)
             .header(
                 Row::new(if self.focused_block == FocusedBlock::Adapter {
-                    CONTROLLER_TABLE_HEADER.map(|s| Cell::new(s.yellow().bold()))
+                    CONTROLLER_TABLE_HEADER.map(|s| Cell::new(s).style(self.theme.focused_header()))
                 } else {
                     CONTROLLER_TABLE_HEADER.map(Cell::new)
                 })
@@ -219,14 +234,14 @@ impl App {
                     .title(" Adapter ")
                     .title_style({
                         if self.focused_block == FocusedBlock::Adapter {
-                            Style::default().bold()
+                            self.theme.focused_title()
                         } else {
                             Style::default()
                         }
                     })
                     .border_style({
                         if self.focused_block == FocusedBlock::Adapter {
-                            Style::default().green()
+                            self.theme.focused_border()
                         } else {
                             Style::default()
                         }
@@ -241,7 +256,7 @@ impl App {
             )
             .flex(self.config.layout)
             .row_highlight_style(if self.focused_block == FocusedBlock::Adapter {
-                Style::default().white().on_dark_gray()
+                self.theme.row_highlight()
             } else {
                 Style::default()
             });
@@ -360,15 +375,13 @@ impl App {
                 if show_battery_column {
                     if self.focused_block == FocusedBlock::PairedDevices {
                         Row::new(["", "Name", "Trusted", "Connected", "Battery"])
-                            .yellow()
-                            .bold()
+                            .style(self.theme.focused_header())
                     } else {
                         Row::new(["", "Name", "Trusted", "Connected", "Battery"])
                     }
                 } else if self.focused_block == FocusedBlock::PairedDevices {
                     Row::new(["", "Name", "Trusted", "Connected"])
-                        .yellow()
-                        .bold()
+                        .style(self.theme.focused_header())
                 } else {
                     Row::new(["", "Name", "Trusted", "Connected", "Battery"])
                 }
@@ -378,13 +391,13 @@ impl App {
                 Block::bordered()
                     .title(" Paired Devices ")
                     .title_style(if self.focused_block == FocusedBlock::PairedDevices {
-                        Style::default().bold()
+                        self.theme.focused_title()
                     } else {
                         Style::default()
                     })
                     .border_style({
                         if self.focused_block == FocusedBlock::PairedDevices {
-                            Style::default().green()
+                            self.theme.focused_border()
                         } else {
                             Style::default()
                         }
@@ -399,7 +412,7 @@ impl App {
             )
             .flex(self.config.layout)
             .row_highlight_style(if self.focused_block == FocusedBlock::PairedDevices {
-                Style::default().white().on_dark_gray()
+                self.theme.row_highlight()
             } else {
                 Style::default()
             });
@@ -452,13 +465,13 @@ impl App {
             .header(
                 Row::new(if self.focused_block == FocusedBlock::NewDevices {
                     [
-                        "Address".yellow().into_centered_line(),
-                        "Name".yellow().into_centered_line(),
+                        "Address".fg(self.theme.accent).into_centered_line(),
+                        "Name".fg(self.theme.accent).into_centered_line(),
                     ]
                 } else {
                     [
-                        "Address".white().into_centered_line(),
-                        "Name".white().into_centered_line(),
+                        "Address".fg(self.theme.foreground).into_centered_line(),
+                        "Name".fg(self.theme.foreground).into_centered_line(),
                     ]
                 })
                 .bold()
@@ -473,12 +486,12 @@ impl App {
                         String::from(" Discovered devices ")
                     })
                     .title_style(if self.focused_block == FocusedBlock::NewDevices {
-                        Style::default().bold()
+                        self.theme.focused_title()
                     } else {
                         Style::default()
                     })
                     .border_style(if self.focused_block == FocusedBlock::NewDevices {
-                        Style::default().green()
+                        self.theme.focused_border()
                     } else {
                         Style::default()
                     })
@@ -490,7 +503,7 @@ impl App {
             )
             .flex(self.config.layout)
             .row_highlight_style(if self.focused_block == FocusedBlock::NewDevices {
-                Style::default().white().on_dark_gray()
+                self.theme.row_highlight()
             } else {
                 Style::default()
             });
@@ -520,6 +533,10 @@ impl App {
     }
 
     pub fn render(&mut self, frame: &mut Frame) {
+        // Paint the themed canvas (Void Navy by default) before any widget.
+        let canvas = self.area(frame);
+        frame.render_widget(Block::default().style(self.theme.base()), canvas);
+
         if let Some(selected_controller_index) = self.controller_state.selected() {
             let (render_new_devices, paired_devices_block_height) = {
                 let selected_controller = &self.controllers[selected_controller_index];
@@ -574,6 +591,7 @@ impl App {
                 self.focused_block,
                 help_block,
                 self.config.clone(),
+                &self.theme,
             );
 
             if self.focused_block == FocusedBlock::SetDeviceAliasBox {
@@ -584,35 +602,36 @@ impl App {
                     &self.new_alias,
                     frame,
                     popup_area,
+                    &self.theme,
                 );
             }
 
             // Request Confirmation
             if let Some(req) = &self.requests.confirmation {
-                req.render(frame, popup_area);
+                req.render(frame, popup_area, &self.theme);
             }
 
             // Request to enter pin code
             if let Some(req) = &self.requests.enter_pin_code {
-                req.render(frame, popup_area);
+                req.render(frame, popup_area, &self.theme);
             }
 
             // Request passkey
             if let Some(req) = &self.requests.enter_passkey {
-                req.render(frame, popup_area);
+                req.render(frame, popup_area, &self.theme);
             }
 
             // Display Pin Code
             if let Some(req) = &self.requests.display_pin_code {
-                req.render(frame, popup_area);
+                req.render(frame, popup_area, &self.theme);
             }
 
             // Display Passkey
             if let Some(req) = &self.requests.display_passkey {
-                req.render(frame, popup_area);
+                req.render(frame, popup_area, &self.theme);
             }
         } else {
-            frame.render_widget("No Bluetooth adapters found. This will automatically refresh when any adapter is detected!".red().bold(), self.area(frame));
+            frame.render_widget("No Bluetooth adapters found. This will automatically refresh when any adapter is detected!".fg(self.theme.error).bold(), self.area(frame));
         }
     }
 

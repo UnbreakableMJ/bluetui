@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use std::sync::Arc;
 
 use ratatui::{
@@ -8,7 +12,7 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use crate::{app::FocusedBlock, config::Config};
+use crate::{app::FocusedBlock, config::Config, theme::Theme};
 
 pub struct Help;
 
@@ -19,6 +23,7 @@ impl Help {
         focused_block: FocusedBlock,
         rendering_block: Rect,
         config: Arc<Config>,
+        theme: &Theme,
     ) {
         let help = match focused_block {
             FocusedBlock::PairedDevices => {
@@ -148,6 +153,9 @@ impl Help {
                     Span::from(" | "),
                     Span::from("↵ ").bold(),
                     Span::from(" Apply"),
+                    Span::from(" | "),
+                    Span::from("^C ^X ^V ^Z").bold(),
+                    Span::from(" Edit"),
                 ])]
             }
             FocusedBlock::RequestConfirmation => {
@@ -172,6 +180,9 @@ impl Help {
                     Span::from(" | "),
                     Span::from("↵ ").bold(),
                     Span::from(" Submit"),
+                    Span::from(" | "),
+                    Span::from("^C ^X ^V ^Z").bold(),
+                    Span::from(" Edit"),
                 ])]
             }
             FocusedBlock::DisplayPinCode => {
@@ -187,7 +198,7 @@ impl Help {
                 ])]
             }
         };
-        let help = Paragraph::new(help).centered().blue();
+        let help = Paragraph::new(help).centered().style(theme.help());
         frame.render_widget(help, rendering_block);
     }
 }
@@ -224,6 +235,7 @@ mod tests {
                     focused_block,
                     frame.area(),
                     Config::new(None).unwrap().into(),
+                    &Theme::steelbore(),
                 );
             })
             .unwrap();

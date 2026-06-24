@@ -1,9 +1,12 @@
+// SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
+// SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+// SPDX-License-Identifier: GPL-3.0-only
+
 use crossterm::event::{KeyCode, KeyEvent};
 
 use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
-    style::{Color, Style, Stylize},
     text::{Line, Span, Text},
     widgets::{Block, BorderType, Borders, Clear, List},
 };
@@ -16,6 +19,8 @@ use crate::{
     app::AppResult,
     event::Event,
     requests::{pad_str, pad_string},
+    text_edit::{CuaOutcome, handle_cua},
+    theme::Theme,
 };
 
 #[derive(Debug, Clone, PartialEq, Default)]
@@ -37,6 +42,8 @@ pub struct EnterPasskey {
 struct UserInputField {
     field: Input,
     error: Option<String>,
+    clipboard: String,
+    undo: Option<String>,
 }
 
 impl EnterPasskey {
@@ -110,18 +117,27 @@ impl EnterPasskey {
                     }
                 }
 
-                FocusedSection::Input => {
-                    self.passkey
-                        .field
-                        .handle_event(&crossterm::event::Event::Key(key_event));
-                }
+                FocusedSection::Input => match handle_cua(
+                    &mut self.passkey.field,
+                    &mut self.passkey.clipboard,
+                    &mut self.passkey.undo,
+                    key_event,
+                ) {
+                    CuaOutcome::Save => self.submit(agent).await?,
+                    CuaOutcome::Handled => {}
+                    CuaOutcome::Ignored => {
+                        self.passkey
+                            .field
+                            .handle_event(&crossterm::event::Event::Key(key_event));
+                    }
+                },
             },
         }
 
         Ok(())
     }
 
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let layout = Layout::vertical([
             Constraint::Fill(1),
             Constraint::Length(8),
@@ -170,14 +186,16 @@ impl EnterPasskey {
             Line::from(vec![
                 {
                     if self.focused_section == FocusedSection::Input {
-                        Span::from("Passkey").green().bold()
+                        Span::styled("Passkey", theme.input_label_active())
                     } else {
                         Span::from("Passkey")
                     }
                 },
                 Span::from("  "),
-                Span::from(pad_string(format!(" {}", self.passkey.field.value()), 60))
-                    .bg(Color::DarkGray),
+                Span::styled(
+                    pad_string(format!(" {}", self.passkey.field.value()), 60),
+                    theme.input_surface(),
+                ),
             ]),
             Line::from(vec![Span::from(pad_str(" ", 9)), {
                 if let Some(error) = &self.passkey.error {
@@ -186,13 +204,13 @@ impl EnterPasskey {
                     Span::from("")
                 }
             }])
-            .red(),
+            .style(theme.error_text()),
         ];
 
         let user_input = List::new(items);
 
         let submit = if self.focused_section == FocusedSection::Submit {
-            Text::from("Submit").centered().bold().green()
+            Text::from("Submit").centered().style(theme.submit_active())
         } else {
             Text::from("Submit").centered()
         };
@@ -203,7 +221,8 @@ impl EnterPasskey {
             Block::new()
                 .borders(Borders::ALL)
                 .border_type(BorderType::Thick)
-                .border_style(Style::default().fg(Color::Green)),
+                .border_style(theme.dialog_border())
+                .style(theme.base()),
             block,
         );
 
