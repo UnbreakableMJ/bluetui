@@ -77,6 +77,10 @@ pub enum ErrorCode {
     ConfigInvalid,
     /// A requested feature (e.g. an output format) is not yet implemented.
     FeatureUnavailable,
+    /// A Bluetooth operation (connect, pair, trust, ...) failed.
+    OperationFailed,
+    /// A destructive operation needs explicit confirmation (`--yes`).
+    ConfirmationRequired,
 }
 
 /// A structured, agent-friendly error.
@@ -189,6 +193,17 @@ pub trait IntoAppError<T> {
 }
 
 impl<T> IntoAppError<T> for anyhow::Result<T> {
+    fn into_app(
+        self,
+        code: ErrorCode,
+        exit: ExitCode,
+        hint: impl Into<String>,
+    ) -> Result<T, AppError> {
+        self.map_err(|e| AppError::new(code, exit, e.to_string(), hint))
+    }
+}
+
+impl<T> IntoAppError<T> for Result<T, bluer::Error> {
     fn into_app(
         self,
         code: ErrorCode,

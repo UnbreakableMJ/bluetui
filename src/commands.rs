@@ -1,19 +1,21 @@
 // SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-//! Read-only CLI command handlers (Phase 1).
+//! CLI command handlers (Phases 1–2).
 //!
 //! Each handler returns the numeric exit code on success or an [`AppError`] on
 //! failure. Data commands reuse [`bluetooth_query`] and project onto the DTOs in
-//! [`crate::dto`]; `schema`/`describe` are pure and never touch BlueZ.
+//! [`crate::dto`]; write commands reuse the same `bluer` calls as the TUI and
+//! honor `--dry-run`; `schema`/`describe` are pure and never touch BlueZ.
 
 use std::str::FromStr;
 
 use bluer::Address;
 use serde_json::{Value, json};
 
+use crate::bluetooth::Controller;
 use crate::bluetooth_query;
-use crate::cli::{AdapterCommand, Command, DeviceCommand, GlobalFlags, SchemaArgs};
+use crate::cli::{AdapterCommand, Command, DeviceCommand, GlobalFlags, OnOff, SchemaArgs};
 use crate::dto::{AdapterDto, DeviceDto};
 use crate::error::{AppError, ErrorCode, ExitCode, IntoAppError};
 use crate::output::{self, MAINTAINER, OutputMode, Response, TOOL, VERSION, WEBSITE};
@@ -65,6 +67,72 @@ async fn adapter(
             let response = Response::new("bluetui adapter get", AdapterDto::detailed(controller));
             output::render(&response, mode, globals.fields.as_deref(), globals.print0)?;
         }
+        AdapterCommand::Power { name, state } => {
+            let controller = find_adapter(&controllers, name)?;
+            if !globals.dry_run {
+                controller
+                    .adapter
+                    .set_powered(state.is_on())
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui adapter list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui adapter power",
+                "power",
+                name,
+                Some(*state),
+            )?;
+        }
+        AdapterCommand::Pairable { name, state } => {
+            let controller = find_adapter(&controllers, name)?;
+            if !globals.dry_run {
+                controller
+                    .adapter
+                    .set_pairable(state.is_on())
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui adapter list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui adapter pairable",
+                "pairable",
+                name,
+                Some(*state),
+            )?;
+        }
+        AdapterCommand::Discoverable { name, state } => {
+            let controller = find_adapter(&controllers, name)?;
+            if !globals.dry_run {
+                controller
+                    .adapter
+                    .set_discoverable(state.is_on())
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui adapter list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui adapter discoverable",
+                "discoverable",
+                name,
+                Some(*state),
+            )?;
+        }
     }
     Ok(ExitCode::Success.as_i32())
 }
@@ -107,15 +175,7 @@ async fn device(
             output::render(&response, mode, globals.fields.as_deref(), globals.print0)?;
         }
         DeviceCommand::Get { address } => {
-            let addr = Address::from_str(address).map_err(|_| {
-                AppError::new(
-                    ErrorCode::InvalidArgument,
-                    ExitCode::Usage,
-                    format!("invalid device address {address:?}; expected AA:BB:CC:DD:EE:FF"),
-                    "bluetui device list --json",
-                )
-                .with_command("bluetui device get")
-            })?;
+            let addr = parse_addr(address, "bluetui device get")?;
             let controllers = load_controllers().await?;
             for controller in &controllers {
                 for d in controller
@@ -141,6 +201,161 @@ async fn device(
             )
             .with_command("bluetui device get"));
         }
+        DeviceCommand::Connect { address } => {
+            let addr = parse_addr(address, "bluetui device connect")?;
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device connect")?;
+            if !globals.dry_run {
+                bluer_device(controller, addr)?.connect().await.into_app(
+                    ErrorCode::OperationFailed,
+                    ExitCode::General,
+                    "bluetui device list --json",
+                )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device connect",
+                "connect",
+                address,
+                None,
+            )?;
+        }
+        DeviceCommand::Disconnect { address } => {
+            let addr = parse_addr(address, "bluetui device disconnect")?;
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device disconnect")?;
+            if !globals.dry_run {
+                bluer_device(controller, addr)?
+                    .disconnect()
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui device list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device disconnect",
+                "disconnect",
+                address,
+                None,
+            )?;
+        }
+        DeviceCommand::Trust { address } => {
+            let addr = parse_addr(address, "bluetui device trust")?;
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device trust")?;
+            if !globals.dry_run {
+                bluer_device(controller, addr)?
+                    .set_trusted(true)
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui device list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device trust",
+                "trust",
+                address,
+                None,
+            )?;
+        }
+        DeviceCommand::Untrust { address } => {
+            let addr = parse_addr(address, "bluetui device untrust")?;
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device untrust")?;
+            if !globals.dry_run {
+                bluer_device(controller, addr)?
+                    .set_trusted(false)
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui device list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device untrust",
+                "untrust",
+                address,
+                None,
+            )?;
+        }
+        DeviceCommand::Pair { address } => {
+            let addr = parse_addr(address, "bluetui device pair")?;
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device pair")?;
+            if !globals.dry_run {
+                bluer_device(controller, addr)?.pair().await.into_app(
+                    ErrorCode::OperationFailed,
+                    ExitCode::General,
+                    "bluetui device list --json",
+                )?;
+            }
+            emit_action(globals, mode, "bluetui device pair", "pair", address, None)?;
+        }
+        DeviceCommand::Unpair { address } => {
+            let addr = parse_addr(address, "bluetui device unpair")?;
+            // Destructive: require explicit confirmation outside of a dry run.
+            if !globals.yes && !globals.dry_run {
+                return Err(AppError::new(
+                    ErrorCode::ConfirmationRequired,
+                    ExitCode::Usage,
+                    format!("unpairing {address} is destructive"),
+                    "bluetui device unpair <addr> --yes",
+                )
+                .with_command("bluetui device unpair"));
+            }
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device unpair")?;
+            if !globals.dry_run {
+                controller.adapter.remove_device(addr).await.into_app(
+                    ErrorCode::OperationFailed,
+                    ExitCode::General,
+                    "bluetui device list --json",
+                )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device unpair",
+                "unpair",
+                address,
+                None,
+            )?;
+        }
+        DeviceCommand::Rename { address, alias } => {
+            let addr = parse_addr(address, "bluetui device rename")?;
+            let controllers = load_controllers().await?;
+            let controller = resolve_device(&controllers, addr, "bluetui device rename")?;
+            if !globals.dry_run {
+                bluer_device(controller, addr)?
+                    .set_alias(alias.clone())
+                    .await
+                    .into_app(
+                        ErrorCode::OperationFailed,
+                        ExitCode::General,
+                        "bluetui device list --json",
+                    )?;
+            }
+            emit_action(
+                globals,
+                mode,
+                "bluetui device rename",
+                "rename",
+                address,
+                None,
+            )?;
+        }
     }
     Ok(ExitCode::Success.as_i32())
 }
@@ -156,6 +371,90 @@ async fn load_controllers() -> Result<Vec<crate::bluetooth::Controller>, AppErro
         ExitCode::BluetoothUnavailable,
         BLUEZ_HINT,
     )
+}
+
+/// Parses a device address argument, mapping a malformed value to a usage error.
+fn parse_addr(address: &str, command: &str) -> Result<Address, AppError> {
+    Address::from_str(address).map_err(|_| {
+        AppError::new(
+            ErrorCode::InvalidArgument,
+            ExitCode::Usage,
+            format!("invalid device address {address:?}; expected AA:BB:CC:DD:EE:FF"),
+            "bluetui device list --json",
+        )
+        .with_command(command)
+    })
+}
+
+/// Finds an adapter by name, or returns a not-found error.
+fn find_adapter<'a>(controllers: &'a [Controller], name: &str) -> Result<&'a Controller, AppError> {
+    controllers.iter().find(|c| c.name == name).ok_or_else(|| {
+        AppError::new(
+            ErrorCode::NotFound,
+            ExitCode::NotFound,
+            format!("adapter {name:?} not found"),
+            "bluetui adapter list --json",
+        )
+        .with_command("bluetui adapter")
+    })
+}
+
+/// Finds the controller that owns `addr` (among paired or discovered devices).
+fn resolve_device<'a>(
+    controllers: &'a [Controller],
+    addr: Address,
+    command: &str,
+) -> Result<&'a Controller, AppError> {
+    controllers
+        .iter()
+        .find(|c| {
+            c.paired_devices
+                .iter()
+                .chain(c.new_devices.iter())
+                .any(|d| d.addr == addr)
+        })
+        .ok_or_else(|| {
+            AppError::new(
+                ErrorCode::NotFound,
+                ExitCode::NotFound,
+                format!("device {addr} not found"),
+                "bluetui device list --json",
+            )
+            .with_command(command)
+        })
+}
+
+/// Obtains a `bluer::Device` handle for `addr` on the given controller's adapter.
+fn bluer_device(controller: &Controller, addr: Address) -> Result<bluer::Device, AppError> {
+    controller.adapter.device(addr).into_app(
+        ErrorCode::OperationFailed,
+        ExitCode::General,
+        "bluetui device list --json",
+    )
+}
+
+/// Emits a structured result for a write command, honoring `--dry-run`.
+fn emit_action(
+    globals: &GlobalFlags,
+    mode: OutputMode,
+    command: &str,
+    action: &str,
+    target: &str,
+    state: Option<OnOff>,
+) -> Result<(), AppError> {
+    let mut object = serde_json::Map::new();
+    object.insert("action".to_owned(), json!(action));
+    object.insert("target".to_owned(), json!(target));
+    if let Some(state) = state {
+        object.insert(
+            "state".to_owned(),
+            json!(if state.is_on() { "on" } else { "off" }),
+        );
+    }
+    object.insert("dry_run".to_owned(), json!(globals.dry_run));
+    object.insert("applied".to_owned(), json!(!globals.dry_run));
+    let response = Response::new(command, Value::Object(object));
+    output::render(&response, mode, globals.fields.as_deref(), globals.print0)
 }
 
 /// Emits a JSON Schema (Draft 2020-12) describing commands, output, and exit codes.
@@ -199,6 +498,26 @@ fn commands_manifest() -> Value {
           "arguments": [{ "name": "--adapter", "required": false }], "reads": true, "writes": false },
         { "name": "device get", "summary": "Show one device by address.",
           "arguments": [{ "name": "address", "required": true }], "reads": true, "writes": false },
+        { "name": "adapter power", "summary": "Power an adapter on or off.",
+          "arguments": [{ "name": "name", "required": true }, { "name": "state", "required": true, "values": ["on", "off"] }], "reads": false, "writes": true },
+        { "name": "adapter pairable", "summary": "Enable or disable pairability of an adapter.",
+          "arguments": [{ "name": "name", "required": true }, { "name": "state", "required": true, "values": ["on", "off"] }], "reads": false, "writes": true },
+        { "name": "adapter discoverable", "summary": "Enable or disable discoverability of an adapter.",
+          "arguments": [{ "name": "name", "required": true }, { "name": "state", "required": true, "values": ["on", "off"] }], "reads": false, "writes": true },
+        { "name": "device connect", "summary": "Connect to a paired device.",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
+        { "name": "device disconnect", "summary": "Disconnect a connected device.",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
+        { "name": "device trust", "summary": "Mark a device as trusted.",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
+        { "name": "device untrust", "summary": "Remove trust from a device.",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
+        { "name": "device pair", "summary": "Pair with a device.",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true },
+        { "name": "device unpair", "summary": "Remove (unpair) a device. Requires --yes in non-TTY mode.",
+          "arguments": [{ "name": "address", "required": true }], "reads": false, "writes": true, "destructive": true },
+        { "name": "device rename", "summary": "Set a device's alias.",
+          "arguments": [{ "name": "address", "required": true }, { "name": "alias", "required": true }], "reads": false, "writes": true },
         { "name": "schema", "summary": "Print the JSON Schema for commands and output.", "reads": true, "writes": false },
         { "name": "describe", "summary": "Print this capability manifest.", "reads": true, "writes": false }
     ])

@@ -139,3 +139,45 @@ fn version_carries_attribution() {
     assert!(text.contains("bluetui"));
     assert!(text.contains("Mohamed.Hammad@SpacecraftSoftware.org"));
 }
+
+// --- Phase 2: write commands (BlueZ-free guard paths) ---
+
+#[test]
+fn unpair_requires_confirmation_in_non_tty() {
+    // A valid address parses, then the destructive guard fires before any
+    // BlueZ access, so this is hardware-independent.
+    let out = run(&["device", "unpair", "AA:BB:CC:DD:EE:FF", "--json"], &[]);
+    assert_eq!(out.status.code(), Some(2));
+    let err: Value = serde_json::from_slice(&out.stderr).expect("structured error on stderr");
+    assert_eq!(err["error"]["code"], "CONFIRMATION_REQUIRED");
+    assert!(
+        err["error"]["hint"].as_str().unwrap().contains("--yes"),
+        "hint must point at --yes"
+    );
+}
+
+#[test]
+fn write_command_rejects_bad_address_before_bluez() {
+    let out = run(&["device", "connect", "NOTANADDR", "--json"], &[]);
+    assert_eq!(out.status.code(), Some(2));
+    let err: Value = serde_json::from_slice(&out.stderr).unwrap();
+    assert_eq!(err["error"]["code"], "INVALID_ARGUMENT");
+}
+
+#[test]
+fn describe_lists_write_commands() {
+    let out = run(&["describe", "--json"], &[]);
+    assert!(out.status.success());
+    let doc: Value = serde_json::from_slice(&out.stdout).unwrap();
+    let commands = doc["data"]["commands"].as_array().expect("commands array");
+    let connect = commands
+        .iter()
+        .find(|c| c["name"] == "device connect")
+        .expect("device connect must be listed");
+    assert_eq!(connect["writes"], true);
+    let unpair = commands
+        .iter()
+        .find(|c| c["name"] == "device unpair")
+        .expect("device unpair must be listed");
+    assert_eq!(unpair["destructive"], true);
+}

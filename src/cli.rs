@@ -112,6 +112,23 @@ pub enum Format {
     Explore,
 }
 
+/// On/off state for adapter toggles.
+#[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
+pub enum OnOff {
+    /// Enable / power on.
+    On,
+    /// Disable / power off.
+    Off,
+}
+
+impl OnOff {
+    /// Returns `true` for `On`.
+    #[must_use]
+    pub fn is_on(self) -> bool {
+        matches!(self, Self::On)
+    }
+}
+
 /// Color policy (`--color`).
 #[derive(Copy, Clone, Debug, PartialEq, Eq, ValueEnum)]
 pub enum ColorWhen {
@@ -156,6 +173,27 @@ pub enum AdapterCommand {
         /// Adapter name, e.g. `hci0`.
         name: String,
     },
+    /// Power an adapter on or off.
+    Power {
+        /// Adapter name, e.g. `hci0`.
+        name: String,
+        /// Target state.
+        state: OnOff,
+    },
+    /// Enable or disable pairability of an adapter.
+    Pairable {
+        /// Adapter name, e.g. `hci0`.
+        name: String,
+        /// Target state.
+        state: OnOff,
+    },
+    /// Enable or disable discoverability of an adapter.
+    Discoverable {
+        /// Adapter name, e.g. `hci0`.
+        name: String,
+        /// Target state.
+        state: OnOff,
+    },
 }
 
 /// Verbs under `bluetui device`.
@@ -172,6 +210,43 @@ pub enum DeviceCommand {
     Get {
         /// Device address, e.g. `AA:BB:CC:DD:EE:FF`.
         address: String,
+    },
+    /// Connect to a paired device.
+    Connect {
+        /// Device address.
+        address: String,
+    },
+    /// Disconnect a connected device.
+    Disconnect {
+        /// Device address.
+        address: String,
+    },
+    /// Mark a device as trusted.
+    Trust {
+        /// Device address.
+        address: String,
+    },
+    /// Remove trust from a device.
+    Untrust {
+        /// Device address.
+        address: String,
+    },
+    /// Pair with a device.
+    Pair {
+        /// Device address.
+        address: String,
+    },
+    /// Remove (unpair) a device. Destructive: requires `--yes` in non-TTY mode.
+    Unpair {
+        /// Device address.
+        address: String,
+    },
+    /// Set a device's alias (rename).
+    Rename {
+        /// Device address.
+        address: String,
+        /// The new alias.
+        alias: String,
     },
 }
 
