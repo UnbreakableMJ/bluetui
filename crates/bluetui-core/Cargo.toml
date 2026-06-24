@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
+# SPDX-License-Identifier: GPL-3.0-only
+
+[package]
+name = "bluetui-core"
+version = "0.8.1"
+description = "Front-end-agnostic BlueZ domain model and palette shared by the bluetui TUI/CLI and the Beacon GUI"
+authors.workspace = true
+license.workspace = true
+edition.workspace = true
+
+[dependencies]
+anyhow = "1"
+bluer = { version = "0.17", features = ["bluetoothd"] }
+dirs = "6"
+
+[lints]
+workspace = true

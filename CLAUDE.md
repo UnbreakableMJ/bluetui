@@ -8,6 +8,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This checkout is a **fork** — `origin` is `UnbreakableMJ/bluetui`, `upstream` is `pythops/bluetui` (the canonical project). The README's contributing rules are explicit and binding: **"No AI slop. Only submit a pull request after having a prior issue or discussion. Keep PRs small and focused."** These norms are stricter than the umbrella defaults — honor them.
 
+## Workspace layout
+
+The repo is a **cargo workspace** (root package + members under `crates/`):
+
+- **`bluetui-core`** (`crates/bluetui-core`) — the front-end-agnostic foundation: the BlueZ domain model (`bluetooth`), the read-only session helper (`bluetooth_query`), favorites persistence (`favorite`), and the §11 `palette` (raw RGB, the single source of truth for colors). Depends only on `bluer`/`anyhow`/`dirs` — no UI toolkit.
+- **`bluetui`** (repo root, the workspace root package) — the TUI + dual-mode CLI. Depends on `bluetui-core` and **re-exports** its modules (`pub use bluetui_core::{bluetooth, bluetooth_query, favorite};`), so existing `crate::bluetooth::…` paths keep resolving; `theme.rs` builds its ratatui colors from `bluetui_core::palette`.
+- **`beacon`** (planned, `crates/beacon`) — a Slint **GUI** ("Beacon", §2 codename) built on `bluetui-core`, sharing the exact BlueZ logic with the TUI/CLI. See the Beacon plan; Material Design (§13) + Void Navy/Steelbore (§11) + Share Tech Mono/Inconsolata (§12).
+
+Workspace-wide `[workspace.lints.clippy]` (pedantic + the curated allow/deny set) and `[profile.release]` live in the root `Cargo.toml`; each member sets `lints.workspace = true`. Build/lint/test with `--workspace`.
+
 ## Commands
 
 Needs BlueZ, D-Bus, and `pkg-config` on the host (`libdbus` is vendored via the `libdbus-sys` "vendored" feature). On Nix, `nix develop` provides the dev shell; the repo uses direnv (`.envrc` is `use flake`).

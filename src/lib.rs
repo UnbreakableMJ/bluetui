@@ -2,18 +2,20 @@
 // SPDX-FileCopyrightText: 2026 Mohamed Hammad <Mohamed.Hammad@SpacecraftSoftware.org>
 // SPDX-License-Identifier: GPL-3.0-only
 
+// The BlueZ domain, read-only query helper, and favorites persistence now live
+// in `bluetui-core` and are shared with the Beacon GUI. Re-export them so the
+// existing `crate::bluetooth` / `crate::favorite` paths keep resolving.
+pub use bluetui_core::{bluetooth, bluetooth_query, favorite};
+
 pub mod agent;
 mod alias;
 pub mod app;
-pub mod bluetooth;
-pub mod bluetooth_query;
 pub mod cli;
 pub mod commands;
 pub mod config;
 pub mod dto;
 pub mod error;
 pub mod event;
-pub mod favorite;
 pub mod handler;
 mod help;
 pub mod notification;

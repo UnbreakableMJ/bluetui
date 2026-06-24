@@ -7,7 +7,7 @@ use bluer::{Adapter, Address, Session};
 
 use bluer::Device as BTDevice;
 
-use crate::app::AppResult;
+use anyhow::Result;
 
 #[derive(Debug, Clone)]
 pub struct Controller {
@@ -37,7 +37,7 @@ pub struct Device {
 }
 
 impl Device {
-    pub async fn set_alias(&self, alias: String) -> AppResult<()> {
+    pub async fn set_alias(&self, alias: String) -> Result<()> {
         self.device.set_alias(alias).await?;
         Ok(())
     }
@@ -64,7 +64,7 @@ impl Controller {
     pub async fn get_all(
         session: Arc<Session>,
         favorite_devices: &[Address],
-    ) -> AppResult<Vec<Controller>> {
+    ) -> Result<Vec<Controller>> {
         let mut controllers: Vec<Controller> = Vec::new();
 
         // let session = bluer::Session::new().await?;
@@ -103,7 +103,7 @@ impl Controller {
     pub async fn get_all_devices(
         adapter: &Adapter,
         favorite_devices: &[Address],
-    ) -> AppResult<(Vec<Device>, Vec<Device>)> {
+    ) -> Result<(Vec<Device>, Vec<Device>)> {
         let mut paired_devices: Vec<Device> = Vec::new();
         let mut new_devices: Vec<Device> = Vec::new();
         let mut devices_without_aliases: Vec<Device> = Vec::new();

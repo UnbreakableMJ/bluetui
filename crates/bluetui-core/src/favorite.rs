@@ -1,8 +1,7 @@
 // SPDX-FileCopyrightText: 2024 Badr Badri <contact@pythops.com>
 // SPDX-License-Identifier: GPL-3.0-only
 
-use crate::app::AppResult;
-use anyhow::Context;
+use anyhow::{Context, Result};
 use bluer::Address;
 use std::{
     fs::File,
@@ -10,7 +9,7 @@ use std::{
     str::FromStr,
 };
 
-pub fn read_favorite_devices_from_disk() -> AppResult<Vec<Address>> {
+pub fn read_favorite_devices_from_disk() -> Result<Vec<Address>> {
     let data_dir = dirs::data_dir()
         .context("unable to find data_dir")?
         .join("bluetui");
@@ -29,7 +28,7 @@ pub fn read_favorite_devices_from_disk() -> AppResult<Vec<Address>> {
         .collect()
 }
 
-pub fn save_favorite_devices_to_disk(favorite_devices: &[Address]) -> AppResult<()> {
+pub fn save_favorite_devices_to_disk(favorite_devices: &[Address]) -> Result<()> {
     let data_dir = dirs::data_dir()
         .context("unable to find data_dir")?
         .join("bluetui");

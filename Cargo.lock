@@ -178,6 +178,7 @@ dependencies = [
  "anyhow",
  "async-channel",
  "bluer",
+ "bluetui-core",
  "clap",
  "crossterm",
  "dirs",
@@ -192,6 +193,15 @@ dependencies = [
  "tokio",
  "toml",
  "tui-input",
+]
+
+[[package]]
+name = "bluetui-core"
+version = "0.8.1"
+dependencies = [
+ "anyhow",
+ "bluer",
+ "dirs",
 ]
 
 [[package]]

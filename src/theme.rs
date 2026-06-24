@@ -10,20 +10,27 @@
 
 use ratatui::style::{Color, Modifier, Style};
 
+use bluetui_core::palette;
+
 use crate::notification::NotificationLevel;
 
+/// Builds a ratatui [`Color`] from a core palette RGB triple.
+const fn rgb(c: palette::Rgb) -> Color {
+    Color::Rgb(c.0, c.1, c.2)
+}
+
 /// Void Navy — the mandated background canvas (`#000027`).
-pub const VOID_NAVY: Color = Color::Rgb(0, 0, 39);
+pub const VOID_NAVY: Color = rgb(palette::VOID_NAVY);
 /// Molten Amber — primary text / active readout (`#D98E32`).
-pub const MOLTEN_AMBER: Color = Color::Rgb(217, 142, 50);
+pub const MOLTEN_AMBER: Color = rgb(palette::MOLTEN_AMBER);
 /// Steel Blue — primary accent / structural (`#4B7EB0`).
-pub const STEEL_BLUE: Color = Color::Rgb(75, 126, 176);
+pub const STEEL_BLUE: Color = rgb(palette::STEEL_BLUE);
 /// Radium Green — success / safe status (`#50FA7B`).
-pub const RADIUM_GREEN: Color = Color::Rgb(80, 250, 123);
+pub const RADIUM_GREEN: Color = rgb(palette::RADIUM_GREEN);
 /// Red Oxide — warning / error status (`#FF5C5C`).
-pub const RED_OXIDE: Color = Color::Rgb(255, 92, 92);
+pub const RED_OXIDE: Color = rgb(palette::RED_OXIDE);
 /// Liquid Coolant — info / links (`#8BE9FD`).
-pub const LIQUID_COOLANT: Color = Color::Rgb(139, 233, 253);
+pub const LIQUID_COOLANT: Color = rgb(palette::LIQUID_COOLANT);
 
 /// Derived muted surface for input fields, selected rows, and code readouts.
 ///
@@ -31,7 +38,7 @@ pub const LIQUID_COOLANT: Color = Color::Rgb(139, 233, 253);
 /// off-palette. This is Steel Blue pulled most of the way toward Void Navy so
 /// the fill reads as a darker shade of the accent rather than a foreign gray,
 /// while keeping enough contrast against the Navy canvas to remain legible.
-pub const SURFACE: Color = Color::Rgb(30, 42, 58);
+pub const SURFACE: Color = rgb(palette::SURFACE);
 
 /// The resolved `Steelbore` theme for one run.
 #[derive(Debug, Clone, Copy)]
